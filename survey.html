@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky survey viewer</title>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#ece6d6;font-family:Jost,"Segoe UI",Arial,sans-serif;overflow:hidden}
+#al{width:100%;height:100%}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:14px;color:#97a1b7;pointer-events:none}
+</style>
+<!-- Aladin Lite v3 (CDS Strasbourg). Loaded in this separate page so its global "A" never clashes with the planetarium. -->
+<script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js" charset="utf-8"></script>
+</head>
+<body>
+<div id="al"></div><div id="msg">Loading the survey viewer…</div>
+<script>
+"use strict";
+const ID=new URLSearchParams(location.search).get('id')||'a';
+let al=null,cat=null,pending=[],muteUntil=0,lastPost=0;
+const post=m=>{try{parent.postMessage(Object.assign({src:'survey',id:ID},m),location.origin)}catch(e){}};
+function setMsg(t){const m=document.getElementById('msg');m.textContent=t||'';m.style.display=t?'flex':'none'}
+function sendView(){if(!al||Date.now()<muteUntil)return;const now=Date.now();if(now-lastPost<60)return;lastPost=now;const [ra,dec]=al.getRaDec();const f=al.getFov();post({type:'view',ra,dec,fov:Array.isArray(f)?f[0]:f})}
+function setSurvey(id){try{if(al.setImageSurvey)al.setImageSurvey(id);else al.setBaseImageLayer(id)}catch(e){try{al.setBaseImageLayer(A.imageHiPS(id))}catch(e2){post({type:'error',msg:'Could not load survey '+id})}}}
+function handle(m){
+  if(m.type==='goto'){muteUntil=Date.now()+400;al.gotoRaDec(m.ra,m.dec);if(m.fov)al.setFoV(m.fov)}
+  else if(m.type==='survey')setSurvey(m.survey)
+  else if(m.type==='marker'){if(!cat){cat=A.catalog({name:'Selected',sourceSize:22,color:'#d9b66c',shape:'circle'});al.addCatalog(cat)}cat.removeAll();if(m.ra!=null)cat.addSources([A.source(m.ra,m.dec,{name:m.label||''})])}
+}
+window.addEventListener('message',e=>{if(e.origin!==location.origin||!e.data||e.data.src!=='sky')return;if(!al){pending.push(e.data);return}try{handle(e.data)}catch(err){post({type:'error',msg:String(err)})}});
+if(!window.A||!A.init){setMsg('The survey viewer (Aladin Lite, CDS Strasbourg) could not load. Check your internet connection.');post({type:'error',msg:'Aladin Lite did not load'})}
+else A.init.then(()=>{
+  al=A.aladin('#al',{survey:'P/DSS2/color',fov:2,target:'05 35 17 -05 23 28',cooFrame:'ICRS',showReticle:true,reticleColor:'#d9b66c',reticleSize:18,
+    showZoomControl:true,showFullscreenControl:false,showLayersControl:false,showGotoControl:false,showFrame:false,showCooGrid:false,
+    showProjectionControl:false,showSettingsControl:false,showShareControl:false,showSimbadPointerControl:true,showContextMenu:true});
+  setMsg('');al.on('positionChanged',sendView);al.on('zoomChanged',sendView);
+  pending.forEach(m=>{try{handle(m)}catch(e){}});pending=[];post({type:'ready'});
+}).catch(e=>{setMsg('The survey viewer failed to start: '+e);post({type:'error',msg:String(e)})});
+</script>
+</body>
+</html>
