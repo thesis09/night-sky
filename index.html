@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Night Sky — live planetarium</title>
+<meta name="description" content="A live, location-aware planetarium with real telescope photos, satellites, exoplanets and astrophysics data.">
+<meta name="theme-color" content="#070a16">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css?v=5.4">
+<link rel="stylesheet" href="css/pro.css?v=5.4">
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <aside id="dock" class="glass" aria-label="Tools"></aside>
+  <main id="stage">
+  <video id="camVideo" playsinline muted autoplay></video>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="sky" aria-label="Live sky chart. Drag to look around, scroll or pinch to zoom, click an object for details."></canvas>
+
+  <div id="top">
+    <button id="where" class="glass" title="Change location or time">
+      <div class="place"><span id="placeName">Nagpur</span><small id="placeCoord"></small></div>
+      <div class="clock" id="clock">—</div>
+      <div class="cond" id="cond">—</div>
+    </button>
+    <div id="searchWrap">
+      <input id="search" class="glass" type="search" placeholder="Find a star, planet, galaxy…" autocomplete="off" spellcheck="false" aria-label="Search the sky">
+      <div id="results" class="glass" role="listbox"></div>
+    </div>
+  </div>
+
+  <div id="tip" class="glass"></div>
+  <button id="sensorPill" class="glass"></button>
+
+  <div class="sheet glass" id="sheetPlace">
+    <h3>Location and time</h3>
+    <div class="cities" id="cities"></div>
+    <div class="grid2">
+      <label>Latitude (°N +, °S −)<input type="number" id="inLat" step="0.0001" min="-90" max="90"></label>
+      <label>Longitude (°E +, °W −)<input type="number" id="inLon" step="0.0001" min="-180" max="180"></label>
+      <label>Elevation (m)<input type="number" id="inElev" step="1"></label>
+      <label>Place name<input type="text" id="inName" maxlength="40"></label>
+    </div>
+    <div class="acts" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn primary" id="applyLoc">Use these coordinates</button>
+      <button class="btn" id="gpsLoc">Use my device location</button>
+    </div>
+    <p class="note" id="gpsNote"></p>
+    <div class="row" style="margin-top:6px"><span>Show times in</span>
+      <select id="tzSel"></select></div>
+    <div class="row"><span>Jump to date and time</span>
+      <input type="datetime-local" id="inTime" step="60"></div>
+    <div class="row"><span></span><button class="btn" id="applyTime">Go to that moment</button></div>
+  </div>
+
+  <div class="sheet glass" id="sheetLayers">
+    <h3>What to show</h3>
+    <div id="layerRows"></div>
+    <div class="row"><span>Ground</span><select id="groundSel"><option value="1">See-through (show what's below)</option><option value="2">Solid (like real life)</option><option value="0">Off</option></select></div>
+    <div class="row"><label for="ly_hud">Compass, altitude scale and sky map</label><input class="toggle" type="checkbox" id="ly_hud"></div>
+    <div class="row"><span>Your sky's light pollution</span><select id="lpSel"></select></div>
+    <div class="row"><span>Renderer</span><select id="rendSel"><option value="gl">GPU (WebGL), fastest</option><option value="2d">Compatibility (Canvas 2D)</option></select></div>
+    <div class="row"><span>Phone compass alignment</span><button class="btn" id="resetCalib">Reset alignment</button></div>
+    <p class="note" id="liveStatus"></p>
+    <p class="note">Light pollution and twilight decide which stars appear at normal zoom, so the chart matches what your eyes can actually see. Zooming in reveals fainter stars, like using binoculars or a telescope.</p>
+  </div>
+
+  <div class="sheet glass" id="sheetUp"><h3>Your sky right now</h3><div class="uplist" id="upList"></div></div>
+
+  <div id="bottom">
+    <div id="look"></div>
+    <div id="bar">
+      <div class="group glass">
+        <button data-step="-86400" title="Back one day">−1 d</button>
+        <button data-step="-3600" title="Back one hour">−1 h</button>
+        <button id="nowBtn" class="on" title="Return to the current time, running live">Now</button>
+        <button data-step="3600" title="Forward one hour">+1 h</button>
+        <button data-step="86400" title="Forward one day">+1 d</button>
+      </div>
+      <div class="group glass">
+        <button id="speedBtn" title="Change how fast time runs">Live speed</button>
+      </div>
+      <span class="spacer"></span>
+      <div class="group glass">
+        <button id="upBtn">Up now</button>
+        <button id="layersBtn">Layers</button>
+        <button id="camBtn" title="Draw the chart over your camera view" hidden>Camera</button>
+        <button id="alignBtn" title="Correct compass error using a star you can see" hidden>Align</button>
+        <button id="gyroBtn" title="Point your phone at the sky and the chart follows" hidden>Phone compass</button>
+        <button id="proBtn" title="Desktop workspace with planner and equipment tools" hidden>Workspace</button>
+        <button id="redBtn" title="Red light keeps your eyes dark-adapted">Red light</button>
+      </div>
+    </div>
+  </div>
+  </main>
+  <div id="info" class="glass" aria-live="polite"></div>
+  <div id="palette" role="dialog" aria-label="Command palette" hidden><div class="pal glass"><input id="palInput" type="text" placeholder="Type a command or an object… (Esc to close)" autocomplete="off" spellcheck="false"><div id="palList" role="listbox"></div></div></div>
+  <div id="keysHelp" role="dialog" aria-label="Keyboard shortcuts" hidden></div>
+  <div id="loading">Unpacking 119,625 stars<small>and 2,144 galaxies, nebulae and clusters</small></div>
+  <div id="err" class="glass"></div>
+  <div id="redmode"></div>
+</div>
+
+<script src="js/boot.js?v=5.4"></script>
+</body>
+</html>
